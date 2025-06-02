@@ -43,31 +43,48 @@ def allowed_file(filename):
 
 @app.route('/upload', methods=['POST'])
 def upload_files():
-    print("Upload endpoint called")  # Debug log
-    print(f"Request files: {request.files}")  # Debug log
-    
-    if 'files' not in request.files:
-        print("No files part in request")  # Debug log
-        return jsonify({'error': 'No files part'}), 400
-    
-    files = request.files.getlist('files')
-    print(f"Number of files: {len(files)}")  # Debug log
-    if not files or all(file.filename == '' for file in files):
-        print("No valid files found")  # Debug log
-        return jsonify({'error': 'No selected files'}), 400
-    
-    results = []
-    for file in files:
-        print(f"Processing file: {file.filename}")  # Debug log
-        if file and allowed_file(file.filename):
+    try:
+        print("\n=== New Upload Request ===")
+        print(f"Request form data: {request.form}")
+        print(f"Request files: {request.files}")
+        
+        if 'files' not in request.files:
+            print("Error: No files part in request")
+            return jsonify({'error': 'No files part'}), 400
+        
+        files = request.files.getlist('files')
+        print(f"Number of files received: {len(files)}")
+        
+        if not files or all(file.filename == '' for file in files):
+            print("Error: No selected files")
+            return jsonify({'error': 'No selected files'}), 400
+        
+        results = []
+        for file in files:
+            filename = secure_filename(file.filename)
+            print(f"\nProcessing file: {filename}")
+            
+            if not file or not allowed_file(filename):
+                print(f"Error: Invalid file type for {filename}")
+                results.append({
+                    'filename': filename,
+                    'status': 'error',
+                    'message': 'Invalid file type. Allowed types: ' + ', '.join(ALLOWED_EXTENSIONS)
+                })
+                continue
+                
             try:
                 # Process the image
+                print(f"Opening image: {filename}")
                 img = Image.open(file)
+                print(f"Original size: {img.size}")
+                
                 processed_img = resize_and_process_image(img)
+                print(f"Processed size: {processed_img.size}")
                 
                 # Save to a BytesIO object
                 img_io = io.BytesIO()
-                processed_img.save(img_io, 'JPEG', quality=95)
+                processed_img.save(img_io, 'JPEG', quality=95, optimize=True)
                 img_io.seek(0)
                 
                 # Convert to base64
@@ -75,28 +92,30 @@ def upload_files():
                 img_data = base64.b64encode(img_io.getvalue()).decode('utf-8')
                 
                 results.append({
-                    'filename': f'processed_{secure_filename(file.filename)}',
+                    'filename': f'processed_{filename}',
                     'status': 'success',
                     'image_data': f'data:image/jpeg;base64,{img_data}'
                 })
+                print(f"Successfully processed: {filename}")
                 
             except Exception as e:
-                print(f"Error processing {file.filename}: {str(e)}")  # Debug log
+                import traceback
+                error_msg = f"Error processing {filename}: {str(e)}\n{traceback.format_exc()}"
+                print(error_msg)
                 results.append({
-                    'filename': file.filename,
+                    'filename': filename,
                     'status': 'error',
-                    'message': str(e)
+                    'message': f'Error processing image: {str(e)}'
                 })
-        else:
-            print(f"Invalid file: {file.filename}")  # Debug log
-            results.append({
-                'filename': file.filename,
-                'status': 'error',
-                'message': 'Invalid file type'
-            })
-    
-    print(f"Returning results: {results}")  # Debug log
-    return jsonify(results)
+        
+        print(f"\nReturning {len([r for r in results if r['status'] == 'success'])} successful results")
+        return jsonify(results)
+        
+    except Exception as e:
+        import traceback
+        error_msg = f"Unexpected error in upload_files: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
 @app.route('/temp/<filename>')
 def get_processed_image(filename):
