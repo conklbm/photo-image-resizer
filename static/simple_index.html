@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Image Resizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .drop-zone:hover {
+            border-color: #007bff;
+        }
+        .result {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .loading {
+            display: none;
+            margin: 10px 0;
+        }
+        .loading.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>Simple Image Resizer</h1>
+    
+    <div class="drop-zone" id="dropZone">
+        <p>Drag and drop an image here or click to select</p>
+        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+    </div>
+
+    <div class="loading" id="loadingStatus">
+        Processing image...
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const resultsContainer = document.getElementById('results');
+        const loadingStatus = document.getElementById('loadingStatus');
+
+        // Handle drag and drop
+        dropZone.addEventListener('dragenter', preventDefaults, false);
+        dropZone.addEventListener('dragover', preventDefaults, false);
+        dropZone.addEventListener('dragleave', preventDefaults, false);
+        dropZone.addEventListener('drop', preventDefaults, false);
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        dropZone.addEventListener('dragenter', highlight, false);
+        dropZone.addEventListener('dragover', highlight, false);
+
+        dropZone.addEventListener('dragleave', unhighlight, false);
+        dropZone.addEventListener('drop', unhighlight, false);
+
+        function highlight(e) {
+            dropZone.style.borderColor = '#007bff';
+        }
+
+        function unhighlight(e) {
+            dropZone.style.borderColor = '#ccc';
+        }
+
+        // Handle file selection
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        // Handle file input change
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                await processFile(file);
+            }
+        });
+
+        // Handle drag and drop
+        dropZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            if (file) {
+                await processFile(file);
+            }
+        });
+
+        async function processFile(file) {
+            if (!file) {
+                showError('No file selected');
+                return;
+            }
+            
+            try {
+                console.log('Selected file:', file.name);
+                loadingStatus.classList.add('active');
+                
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = 'result';
+                    resultDiv.innerHTML = `
+                        <h3>Success!</h3>
+                        <p>Processed ${file.name}</p>
+                        <img src="${url}" alt="Processed image" style="max-width: 100%;">
+                    `;
+                    resultsContainer.appendChild(resultDiv);
+                } else {
+                    const error = await response.json();
+                    showError(error.error);
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                showError('Error processing image: ' + err.message);
+            } finally {
+                loadingStatus.classList.remove('active');
+            }
+        }
+
+        function showError(message) {
+            const alert = document.createElement('div');
+            alert.className = 'result';
+            alert.style.color = 'red';
+            alert.textContent = message;
+            resultsContainer.appendChild(alert);
+        }
+    </script>
+</body>
+</html>

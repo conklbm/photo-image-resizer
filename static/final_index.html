@@ -3,36 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Photo Resizer Plus Border</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <title>Image Resizer</title>
     <style>
-        .drop-zone {
-            border: 2px dashed #ccc;
-            border-radius: 10px;
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
             padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .drop-zone {
+            border: 2px dashed #007bff;
+            border-radius: 8px;
+            padding: 40px;
             text-align: center;
-            margin: 20px;
-            transition: border-color 0.3s;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
         }
         .drop-zone:hover {
-            border-color: #007bff;
+            background-color: #e9f8ff;
+            border-color: #0056b3;
+        }
+        .drop-zone.dragover {
+            background-color: #e9f8ff;
+            border-color: #0056b3;
+        }
+        .drop-zone p {
+            color: #007bff;
+            font-size: 1.2em;
         }
         .result {
             margin: 20px 0;
-            padding: 10px;
+            padding: 15px;
             border: 1px solid #ddd;
-            border-radius: 5px;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+        }
+        .result img {
+            max-width: 100%;
+            height: auto;
+            margin: 10px 0;
         }
         .buttons {
-            margin-top: 10px;
             display: flex;
             gap: 10px;
+            margin-top: 10px;
         }
         .btn {
             padding: 8px 16px;
             border-radius: 4px;
             text-decoration: none;
             cursor: pointer;
+            display: inline-block;
+            font-size: 0.9em;
         }
         .btn-primary {
             background-color: #007bff;
@@ -47,38 +77,46 @@
         .btn:hover {
             opacity: 0.9;
         }
-        .result-image {
-            max-width: 100%;
-            max-height: 600px;
-            margin: 20px 0;
+        .error {
+            color: #dc3545;
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            background-color: #f8d7da;
+        }
+        .success {
+            color: #155724;
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            background-color: #d4edda;
         }
     </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <h1 class="mb-4">Photo Resizer Plus Border</h1>
+    <div class="container">
+        <h1>Image Resizer</h1>
+        <p>Upload images to resize them to 1200px width with a 1-pixel black border.</p>
         
         <div class="drop-zone" id="dropZone">
             <p>Drag and drop images here or click to select</p>
-            <form id="uploadForm" enctype="multipart/form-data">
-                <input type="file" id="fileInput" name="files" accept=".png,.jpg,.jpeg,.webp,.tiff" multiple style="display: none;">
-            </form>
+            <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
         </div>
 
-        <div id="processingStatus" class="alert alert-info d-none">
+        <div id="status" class="success d-none">
             Processing images...
         </div>
 
-        <div id="results" class="mt-4">
-            <!-- Results will be displayed here -->
-        </div>
+        <div id="results"></div>
     </div>
 
     <script>
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
+        const status = document.getElementById('status');
         const resultsContainer = document.getElementById('results');
-        const processingStatus = document.getElementById('processingStatus');
 
         // Handle drag and drop
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -91,40 +129,31 @@
         }
 
         ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, highlight, false);
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
         });
 
         ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, unhighlight, false);
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
         });
-
-        function highlight(e) {
-            dropZone.style.borderColor = '#007bff';
-        }
-
-        function unhighlight(e) {
-            dropZone.style.borderColor = '#ccc';
-        }
 
         // Handle file selection
-        dropZone.addEventListener('drop', handleDrop, false);
         dropZone.addEventListener('click', () => fileInput.click());
-
-        fileInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                await processFile(file);
-            }
-        });
-
-        function handleDrop(e) {
+        
+        dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             const dt = e.dataTransfer;
             const file = dt.files[0];
             if (file) {
                 processFile(file);
             }
-        }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                processFile(file);
+            }
+        });
 
         async function processFile(file) {
             if (!file) {
@@ -133,8 +162,7 @@
             }
 
             try {
-                console.log('Selected file:', file.name);
-                processingStatus.classList.remove('d-none');
+                status.classList.remove('d-none');
                 
                 const formData = new FormData();
                 formData.append('files', file);
@@ -147,17 +175,16 @@
                 if (response.ok) {
                     const blob = await response.blob();
                     const url = URL.createObjectURL(blob);
-                    const filename = `processed_${file.name}`;
                     
                     const resultDiv = document.createElement('div');
                     resultDiv.className = 'result';
                     resultDiv.innerHTML = `
                         <h3>Success!</h3>
                         <p>Processed ${file.name}</p>
-                        <img src="${url}" alt="Processed image" style="max-width: 100%; margin: 10px 0;">
+                        <img src="${url}" alt="Processed image">
                         <div class="buttons">
                             <button onclick="window.open('${url}', '_blank')" class="btn btn-primary">View in New Tab</button>
-                            <a href="${url}" download="${filename}" class="btn btn-secondary">Download</a>
+                            <a href="${url}" download="processed_${file.name}" class="btn btn-secondary">Download</a>
                         </div>
                     `;
                     resultsContainer.appendChild(resultDiv);
@@ -166,16 +193,16 @@
                     showError(error.error);
                 }
             } catch (err) {
-                console.error('Error:', err);  // Debug log
-                showError('Error processing images');
+                console.error('Error:', err);
+                showError('Error processing image: ' + err.message);
+            } finally {
+                status.classList.add('d-none');
             }
-            
-            processingStatus.classList.add('d-none');
         }
 
         function showError(message) {
             const alert = document.createElement('div');
-            alert.className = 'alert alert-danger';
+            alert.className = 'error';
             alert.textContent = message;
             resultsContainer.appendChild(alert);
         }
